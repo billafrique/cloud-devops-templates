@@ -1,4 +1,4 @@
-name: Reusable — Backend Build & Deploy (Dev)
+name: Reusable — Backend Build, Scan & Deploy (Dev)
 
 on:
   workflow_call:
@@ -42,14 +42,29 @@ jobs:
             -u "${{ secrets.DOCR_TOKEN }}" \
             --password-stdin
 
-      - name: Build & push Docker image
+      # ── Build image locally first — not pushed yet ──────────────────────────
+      # SHA-only tag — no latest, every image is fully traceable to a commit
+      - name: Build Docker image
         run: |
           docker build \
             -t ${{ secrets.DOCR_ENDPOINT }}/billafrique-api:${{ inputs.image_tag }} \
-            -t ${{ secrets.DOCR_ENDPOINT }}/billafrique-api:latest \
             .
+
+      # ── Trivy scan — runs BEFORE push so vulnerable images never reach DOCR ──
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCR_ENDPOINT }}/billafrique-api:${{ inputs.image_tag }}
+          format: table                   # human-readable output in Actions log
+          exit-code: '1'                  # FAILS the pipeline if vulnerabilities found
+          ignore-unfixed: true            # skip vulns that have no fix available yet
+          vuln-type: 'os,library'         # scan OS packages and app dependencies
+          severity: 'CRITICAL,HIGH'       # only block on CRITICAL and HIGH
+
+      # ── Push only if Trivy scan passes ─────────────────────────────────────
+      - name: Push Docker image to DOCR
+        run: |
           docker push ${{ secrets.DOCR_ENDPOINT }}/billafrique-api:${{ inputs.image_tag }}
-          docker push ${{ secrets.DOCR_ENDPOINT }}/billafrique-api:latest
 
   deploy:
     needs: build-push
@@ -119,13 +134,17 @@ jobs:
               --password-stdin
 
             cd /opt/backend
-            export IMAGE_TAG=${{ inputs.image_tag }}
-            export DOCR_ENDPOINT=${{ secrets.DOCR_ENDPOINT }}
+
+            # Inject the exact SHA into .env so docker-compose pulls the right image
+            # This replaces whatever IMAGE_TAG was previously set
+            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${{ inputs.image_tag }}|" .env
 
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d \
               --no-deps \
               --remove-orphans
 
-            docker image prune -af --filter "until=24h"
+            # Keep last 48h of images for quick rollback — then prune older ones
+            docker image prune -af --filter "until=48h"
+
             echo "✅ billafrique-api deployed: ${{ inputs.image_tag }}"
