@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  billafrique-api:
+    image: ${DOCR_ENDPOINT}/billafrique-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+    environment:
+      # JVM tuning — managed here at infra level, not in application code
+      JAVA_TOOL_OPTIONS: >-
+        -Xms256m
+        -Xmx768m
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=75.0
+        -XX:+UseG1GC
+        -XX:+ExitOnOutOfMemoryError
+    networks:
+      - billafrique_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.7"
+          memory: 896M
+        reservations:
+          cpus: "0.3"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider",
+             "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+networks:
+  billafrique_network:
+    external: true
+    name: billafrique_network
