@@ -1,12 +1,11 @@
-name: Reusable — Deploy Infra (Dev)
+name: Deploy Infra (Dev)
 
 on:
-  workflow_call:
-    secrets:
-      DROPLET_IP:
-        required: true
-      SSH_PRIVATE_KEY:
-        required: true
+  push:
+    branches: [main]
+    paths:
+      - 'infra-config/**'        # only triggers when infra files actually change
+  workflow_dispatch:             # keep manual trigger from GitHub UI
 
 jobs:
   deploy-infra:
@@ -16,9 +15,6 @@ jobs:
     steps:
       - name: Checkout cloud-devops-templates
         uses: actions/checkout@v4
-        with:
-          repository: billafrique/cloud-devops-templates
-          ref: main
 
       - name: Copy infra configs to droplet
         uses: appleboy/scp-action@v0.1.7
