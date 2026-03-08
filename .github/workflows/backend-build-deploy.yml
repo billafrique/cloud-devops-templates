@@ -25,19 +25,12 @@ jobs:
       - name: Checkout calling repo (billafrique-api)
         uses: actions/checkout@v4
 
-      # ── Fix 1: Java 21 not 17 — matches pom.xml <java.version>21 ──
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: maven
-
-      # ── Fix 2: Use ./mvnw not mvn ─────────────────────────────────
-      # The repo uses Maven wrapper — mvn is not installed on the runner
-      # ./mvnw uses the exact Maven version pinned in .mvn/wrapper/
-      - name: Build JAR with Maven
-        run: ./mvnw clean package -DskipTests -B
+      # No separate Maven build step needed — the Dockerfile handles
+      # everything via multi-stage build:
+      #   Stage 1: deps cache (pom.xml only)
+      #   Stage 2: mvn clean package (source code)
+      #   Stage 3: extract layered JAR
+      #   Stage 4: lean Alpine runtime image
 
       - name: Log in to DOCR
         run: |
