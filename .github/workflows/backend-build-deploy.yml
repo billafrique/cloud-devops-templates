@@ -73,6 +73,7 @@ jobs:
         with:
           repository: billafrique/cloud-devops-templates
           ref: main
+          token: ${{ github.token }}
          
 
       - name: Copy backend compose config to droplet
