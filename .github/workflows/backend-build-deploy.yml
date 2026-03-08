@@ -73,6 +73,7 @@ jobs:
         with:
           repository: billafrique/cloud-devops-templates
           ref: main
+          token: ${{ secrets.G_TOKEN }}
 
       - name: Copy backend compose config to droplet
         uses: appleboy/scp-action@v0.1.7
