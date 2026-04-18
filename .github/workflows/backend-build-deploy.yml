@@ -21,7 +21,6 @@ on:
 jobs:
   build-push:
     runs-on: ubuntu-latest
-    environment: dev
 
     steps:
       - name: Checkout calling repo (billafrique-api)
@@ -67,7 +66,6 @@ jobs:
   deploy:
     needs: build-push
     runs-on: ubuntu-latest
-    environment: dev
 
     steps:
       - name: Checkout cloud-devops-templates
@@ -75,8 +73,7 @@ jobs:
         with:
           repository: billafrique/cloud-devops-templates
           ref: main
-          token: ${{ secrets.G_TOKEN }} 
-         
+          token: ${{ secrets.G_TOKEN }}
 
       - name: Copy backend compose config to droplet
         uses: appleboy/scp-action@v0.1.7
@@ -147,4 +144,3 @@ jobs:
             docker image prune -af --filter "until=48h"
 
             echo "✅ billafrique-api deployed: ${{ inputs.image_tag }}"
-
