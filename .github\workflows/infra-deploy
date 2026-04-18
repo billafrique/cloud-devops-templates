@@ -1,24 +1,20 @@
 name: Deploy Infrastructure
-
 on:
-  # Trigger 1 — manual run from GitHub Actions UI
   workflow_dispatch:
-
-  # Trigger 2 — any push to main branch
   push:
     branches: [main]
     paths:
-      - 'infra-config/**'         # any change inside infra-config folder
-      - '.github/workflows/infra-deploy.yml'  # or the pipeline itself changes
-
+      - 'infra-config/**'
+      - '.github/workflows/infra-deploy.yml'
 jobs:
   deploy-infra:
     runs-on: ubuntu-latest
     environment: dev
-
     steps:
       - name: Checkout cloud-devops-templates
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.G_TOKEN }}   # ← fix: authenticate against private repo
 
       - name: Copy infra configs to droplet
         uses: appleboy/scp-action@v0.1.7
@@ -29,7 +25,6 @@ jobs:
           source: "infra-config/"
           target: "/opt/infra"
           strip_components: 1
-
       - name: Deploy infra services
         uses: appleboy/ssh-action@v1.0.3
         with:
