@@ -21,6 +21,7 @@ on:
 jobs:
   build-push:
     runs-on: ubuntu-latest
+    # environment: dev  ← removed, jobs now use repo-level secrets
 
     steps:
       - name: Checkout calling repo (billafrique-api)
@@ -66,6 +67,7 @@ jobs:
   deploy:
     needs: build-push
     runs-on: ubuntu-latest
+    # environment: dev  ← removed, jobs now use repo-level secrets
 
     steps:
       - name: Checkout cloud-devops-templates
