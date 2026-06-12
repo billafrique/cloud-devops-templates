@@ -13,7 +13,7 @@ cloud-devops-templates/
 │   └── dev/
 │       ├── infra-deploy.yml              # reusable — deploys MySQL + Redis + Nginx
 │       ├── backend-build-deploy.yml      # reusable — builds billafrique-api → DOCR → droplet
-│       └── frontend-build-deploy.yml     # reusable — builds frontend → DOCR → droplet
+│       └── frontend-build-deploy.yml     # reusable — builds billafrique-web → DOCR → droplet
 │
 ├── infra-config/                         # authoritative infra configs deployed to droplet
 │   ├── docker-compose.infra.yml
@@ -31,7 +31,7 @@ cloud-devops-templates/
     ├── backend/
     │   ├── docker-compose.prod.yml
     │   └── .env.example
-    ├── frontend/
+    ├── billafrique-web/
     │   ├── docker-compose.prod.yml
     │   └── .env.example
     └── infra/
@@ -42,7 +42,7 @@ cloud-devops-templates/
 
 ## How Each App Repo Calls These Pipelines
 
-In your `backend-api` or `frontend-app` repo, create `.github/workflows/deploy.yml`:
+In your `backend-api` or `billafrique-web` repo, create `.github/workflows/deploy.yml`:
 
 ### Backend (billafrique-api)
 ```yaml
@@ -64,9 +64,9 @@ jobs:
       DOCR_ENDPOINT: ${{ secrets.DOCR_ENDPOINT }}
 ```
 
-### Frontend
+### Billafrique-Web
 ```yaml
-name: Deploy Frontend
+name: Deploy Billafrique-Web
 
 on:
   push:
@@ -105,7 +105,7 @@ jobs:
 
 ## GitHub Secrets Required Per Repo
 
-| Secret | infra-configs | backend-api | frontend-app |
+| Secret | infra-configs | backend-api | billafrique-web |
 |---|---|---|---|
 | `DROPLET_IP` | ✅ | ✅ | ✅ |
 | `SSH_PRIVATE_KEY` | ✅ | ✅ | ✅ |
@@ -125,8 +125,8 @@ cd /opt/infra && docker compose -f docker-compose.infra.yml up -d
 # 2. Backend — pipeline waits for MySQL + Redis to be healthy
 cd /opt/backend && docker compose -f docker-compose.prod.yml up -d
 
-# 3. Frontend — independent, can deploy any time after infra
-cd /opt/frontend && docker compose -f docker-compose.prod.yml up -d
+# 3. Billafrique-Web — independent, can deploy any time after infra
+cd /opt/billafrique-web && docker compose -f docker-compose.prod.yml up -d
 ```
 
 ---
@@ -146,11 +146,11 @@ chown -R 999:999 /mnt/volume-data/mysql
 chown -R 999:999 /mnt/volume-data/redis
 
 # Create deploy directories
-mkdir -p /opt/{infra,backend,frontend}
+mkdir -p /opt/{infra,backend,billafrique-web}
 
 # Create .env files from examples (fill in real values)
 cp /opt/infra/.env.example /opt/infra/.env
 cp /opt/backend/.env.example /opt/backend/.env
-cp /opt/frontend/.env.example /opt/frontend/.env
-chmod 600 /opt/infra/.env /opt/backend/.env /opt/frontend/.env
+cp /opt/billafrique-web/.env.example /opt/billafrique-web/.env
+chmod 600 /opt/infra/.env /opt/backend/.env /opt/billafrique-web/.env
 ```
