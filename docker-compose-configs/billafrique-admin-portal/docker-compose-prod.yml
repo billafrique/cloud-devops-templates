@@ -1,8 +1,8 @@
 version: "3.9"
 
 services:
-  billafrique-web:
-    image: ${DOCR_ENDPOINT}/billafrique-web:${IMAGE_TAG:-latest}
+  billafrique-admin-portal:
+    image: ${DOCR_ENDPOINT}/billafrique-admin-portal:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "3001:3000"
