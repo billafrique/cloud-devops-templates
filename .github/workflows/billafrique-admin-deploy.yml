@@ -36,9 +36,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --frozen-lockfile
 
-      - name: Build React app
-        run: npm run build
-
       - name: Log in to DOCR
         run: |
           echo "${{ secrets.DOCR_TOKEN }}" | \
@@ -58,7 +55,7 @@ jobs:
       - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ secrets.DOCR_ENDPOINT }}/billafrique-web:${{ inputs.image_tag }}
+          image-ref: ${{ secrets.DOCR_ENDPOINT }}/billafrique-admin-portal:${{ inputs.image_tag }}
           format: table                   # human-readable output in Actions log
           exit-code: '0'                  # FAILS the pipeline if vulnerabilities found
           ignore-unfixed: true            # skip vulns that have no fix available yet
