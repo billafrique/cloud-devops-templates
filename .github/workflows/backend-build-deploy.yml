@@ -83,7 +83,7 @@ jobs:
           host: ${{ secrets.DROPLET_IP }}
           username: deploy
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose-configs/backend/docker-compose.prod.yml"
+          source: "docker-compose-configs/backend/docker-compose.dev.yml"
           target: "/opt/backend"
           strip_components: 2
 
@@ -137,8 +137,8 @@ jobs:
             # Inject the exact SHA into .env so docker compose pulls the right image
             sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${{ inputs.image_tag }}|" .env
 
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d \
+            docker compose -f docker-compose.dev.yml pull
+            docker compose -f docker-compose.dev.yml up -d \
               --no-deps \
               --remove-orphans
 
