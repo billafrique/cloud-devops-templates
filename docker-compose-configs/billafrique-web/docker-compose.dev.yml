@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  billafrique-web:
+    image: ${DOCR_ENDPOINT}/billafrique-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "4000:3000"
+    networks:
+      - billafrique_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+
+networks:
+  billafrique_network:
+    external: true
+    name: billafrique_network
