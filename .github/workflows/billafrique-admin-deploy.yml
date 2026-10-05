@@ -89,7 +89,7 @@ jobs:
           target: "/opt/billafrique-admin-portal"
           strip_components: 2
 
-      - name: Deploy billafrique-web
+      - name: Deploy billafrique-admin-portal
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DROPLET_IP }}
