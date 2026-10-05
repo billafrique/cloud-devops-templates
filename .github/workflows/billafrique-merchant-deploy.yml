@@ -1,0 +1,118 @@
+name: Reusable — Billafrique-merchant-Portal Build, Scan & Deploy (Dev)
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
+    secrets:
+      DROPLET_IP:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+      DOCR_TOKEN:
+        required: true
+      DOCR_ENDPOINT:
+        required: true
+      G_TOKEN:
+        required: true 
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout calling repo (billafrique-web)
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      
+
+      - name: Log in to DOCR
+        run: |
+          echo "${{ secrets.DOCR_TOKEN }}" | \
+          docker login registry.digitalocean.com \
+            -u "${{ secrets.DOCR_TOKEN }}" \
+            --password-stdin
+
+      # ── Build image locally first — not pushed yet ──────────────────────────
+      # SHA-only tag — no latest, every image is fully traceable to a commit
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ secrets.DOCR_ENDPOINT }}/billafrique-merchant-portal:${{ inputs.image_tag }} \
+            .
+
+      # ── Trivy scan — runs BEFORE push so vulnerable images never reach DOCR ──
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCR_ENDPOINT }}/billafrique-merchant-portal:${{ inputs.image_tag }}
+          format: table                   # human-readable output in Actions log
+          exit-code: '0'                  # FAILS the pipeline if vulnerabilities found
+          ignore-unfixed: true            # skip vulns that have no fix available yet
+          vuln-type: 'os,library'         # scan OS packages and app dependencies
+          severity: 'CRITICAL,HIGH'       # only block on CRITICAL and HIGH
+
+      # ── Push only if Trivy scan passes ─────────────────────────────────────
+      - name: Push Docker image to DOCR
+        run: |
+          docker push ${{ secrets.DOCR_ENDPOINT }}/billafrique-merchant-portal:${{ inputs.image_tag }}
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout cloud-devops-templates
+        uses: actions/checkout@v4
+        with:
+          repository: billafrique/cloud-devops-templates
+          ref: main
+          token: ${{ secrets.G_TOKEN }}
+
+      - name: Copy billafrique-web compose config to droplet
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: deploy
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose-configs/billafrique-merchant-portal/docker-compose.dev.yml"
+          target: "/opt/billafrique-merchant-portal"
+          strip_components: 2
+
+      - name: Deploy billafrique-merchant-portal
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: deploy
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "${{ secrets.DOCR_TOKEN }}" | \
+            docker login registry.digitalocean.com \
+              -u "${{ secrets.DOCR_TOKEN }}" \
+              --password-stdin
+
+            cd /opt/billafrique-merchant-portal
+
+            # Inject the exact SHA into .env so docker-compose pulls the right image
+            # This replaces whatever IMAGE_TAG was previously set
+            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${{ inputs.image_tag }}|" .env
+
+            docker compose -f docker-compose.dev.yml pull
+            docker compose -f docker-compose.dev.yml up -d \
+              --no-deps \
+              --remove-orphans
+
+            # Keep last 48h of images for quick rollback — then prune older ones
+            docker image prune -af --filter "until=48h"
+
+            echo "✅ billafrique-merchant-portal deployed: ${{ inputs.image_tag }}"
