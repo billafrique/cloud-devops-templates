@@ -79,7 +79,20 @@ jobs:
           ref: main
           token: ${{ secrets.G_TOKEN }}
 
-      - name: Copy billafrique-web compose config to droplet
+      - name: Prepare target directory on droplet
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: deploy
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            if [ ! -d /opt/billafrique-merchant-portal ]; then
+              sudo -n mkdir -p /opt/billafrique-merchant-portal
+              sudo -n chown -R deploy:deploy /opt/billafrique-merchant-portal
+            fi
+
+      - name: Copy billafrique-merchant-portal compose config to droplet
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DROPLET_IP }}
@@ -91,28 +104,45 @@ jobs:
 
       - name: Deploy billafrique-merchant-portal
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          TAG: ${{ inputs.image_tag || github.sha }}
+          DOCR_TOKEN: ${{ secrets.DOCR_TOKEN }}
+          REGISTRY: registry.digitalocean.com/billafrique
         with:
           host: ${{ secrets.DROPLET_IP }}
           username: deploy
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: TAG,DOCR_TOKEN,REGISTRY
+          script_stop: true
           script: |
-            echo "${{ secrets.DOCR_TOKEN }}" | \
-            docker login registry.digitalocean.com \
-              -u "${{ secrets.DOCR_TOKEN }}" \
-              --password-stdin
+            echo "$DOCR_TOKEN" | docker login registry.digitalocean.com \
+              -u "$DOCR_TOKEN" --password-stdin
 
             cd /opt/billafrique-merchant-portal
 
-            # Inject the exact SHA into .env so docker-compose pulls the right image
-            # This replaces whatever IMAGE_TAG was previously set
-            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${{ inputs.image_tag }}|" .env
+            # Create .env if missing, then set or update each value
+            touch .env
+            set_env() {
+              if grep -q "^$1=" .env; then
+                sed -i "s|^$1=.*|$1=$2|" .env
+              else
+                echo "$1=$2" >> .env
+              fi
+            }
+            set_env DOCR_ENDPOINT "$REGISTRY"
+            set_env IMAGE_TAG "$TAG"
+
+            # Make sure a shell variable can't override .env
+            unset IMAGE_TAG DOCR_ENDPOINT
+
+            echo "Deploying tag: $TAG"
+            cat .env
+            docker compose -f docker-compose.dev.yml config | grep image:
 
             docker compose -f docker-compose.dev.yml pull
-            docker compose -f docker-compose.dev.yml up -d \
-              --no-deps \
-              --remove-orphans
+            docker compose -f docker-compose.dev.yml up -d --remove-orphans
 
-            # Keep last 48h of images for quick rollback — then prune older ones
+            # Keep last 48h of images for quick rollback, then prune older ones
             docker image prune -af --filter "until=48h"
 
-            echo "✅ billafrique-merchant-portal deployed: ${{ inputs.image_tag }}"
+            echo "✅ billafrique-merchant-portal deployed: $TAG"
