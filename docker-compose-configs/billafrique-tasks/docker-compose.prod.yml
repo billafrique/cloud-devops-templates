@@ -1,0 +1,99 @@
+version: "3.9"
+
+# Billafrique-Tasks stack: app + its OWN MySQL + its OWN Redis.
+# Fully isolated: everything runs on its own network (billafrique_tasks_network) and
+# does NOT join the shared billafrique_network used by the infra MySQL/Redis/Nginx.
+# The shared Nginx reaches the app only through the published host port (3002).
+
+services:
+  billafrique-tasks:
+    image: ${DOCR_ENDPOINT}/billafrique-tasks:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@tasks-mysql:3306/${MYSQL_DATABASE}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@tasks-redis:6379
+      APP_URL: ${APP_URL}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-BillAfrique Tasks <tasks@billafrique.com>}
+    ports:
+      - "127.0.0.1:3002:3000"        # 3000 = billafrique-web, 3002 = tasks
+    depends_on:
+      tasks-mysql:
+        condition: service_healthy
+      tasks-redis:
+        condition: service_healthy
+    networks:
+      - tasks_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 384M
+        reservations:
+          cpus: "0.05"
+          memory: 128M
+
+  tasks-mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "127.0.0.1:3307:3306"        # shared infra MySQL uses 3306
+    volumes:
+      - tasks_mysql_data:/var/lib/mysql
+    networks:
+      - tasks_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  tasks-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:6380:6379"        # shared infra Redis uses 6379
+    volumes:
+      - tasks_redis_data:/data
+    networks:
+      - tasks_network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  tasks_mysql_data:
+  tasks_redis_data:
+
+networks:
+  tasks_network:
+    driver: bridge
+    name: billafrique_tasks_network
