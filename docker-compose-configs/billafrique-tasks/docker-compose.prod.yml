@@ -17,7 +17,7 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-BillAfrique Tasks <tasks@billafrique.com>}
     ports:
-      - "127.0.0.1:3002:3000"        # 3000 = billafrique-web, 3002 = tasks
+      - "3031:3000"        # 3000 = billafrique-web, 3002 = tasks
     depends_on:
       tasks-mysql:
         condition: service_healthy
