@@ -24,7 +24,8 @@ services:
       tasks-redis:
         condition: service_healthy
     networks:
-      - tasks_network
+      - tasks_network            # use the key your file already uses for billafrique_tasks_network
+      - billafrique_network
     deploy:
       resources:
         limits:
