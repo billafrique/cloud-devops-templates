@@ -94,32 +94,20 @@ jobs:
           username: deploy
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "Checking MySQL health..."
-            for i in {1..10}; do
-              MYSQL_ID=$(docker ps -qf "name=mysql")
-              STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$MYSQL_ID" 2>/dev/null || echo "not_found")
-              if [ "$STATUS" = "healthy" ]; then
-                echo "✅ MySQL is healthy"
-                break
-              fi
-              echo "⏳ Waiting for MySQL... ($i/10) — status: $STATUS"
-              sleep 6
-            done
-            [ "$STATUS" = "healthy" ] || { echo "❌ MySQL not healthy — aborting"; exit 1; }
+            wait_healthy() {
+              local name="$1" status
+              for i in $(seq 1 10); do
+                status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' "$name" 2>/dev/null || echo "not_found")
+                echo "[$name] ($i/10) status: $status"
+                [ "$status" = "healthy" ] && return 0
+                sleep 6
+              done
+              echo "❌ $name not healthy — aborting"
+              return 1
+            }
 
-            echo "Checking Redis health..."
-            for i in {1..10}; do
-              REDIS_ID=$(docker ps -qf "name=redis")
-              STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$REDIS_ID" 2>/dev/null || echo "not_found")
-              if [ "$STATUS" = "healthy" ]; then
-                echo "✅ Redis is healthy"
-                break
-              fi
-              echo "⏳ Waiting for Redis... ($i/10) — status: $STATUS"
-              sleep 6
-            done
-            [ "$STATUS" = "healthy" ] || { echo "❌ Redis not healthy — aborting"; exit 1; }
-
+            wait_healthy infra-mysql-1 || exit 1
+            wait_healthy infra-redis-1 || exit 1
       - name: Deploy billafrique-api
         uses: appleboy/ssh-action@v1.0.3
         with:
