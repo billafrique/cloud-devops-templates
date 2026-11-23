@@ -1,9 +1,7 @@
-version: "3.9"
-
 # Billafrique-Tasks stack: app + its OWN MySQL + its OWN Redis.
-# Fully isolated: everything runs on its own network (billafrique_tasks_network) and
-# does NOT join the shared billafrique_network used by the infra MySQL/Redis/Nginx.
-# The shared Nginx reaches the app only through the published host port (3002).
+# MySQL and Redis stay on billafrique_tasks_network only.
+# The web service also joins billafrique_network so Nginx (infra-nginx-1)
+# can reach it at http://billafrique-tasks:3000.
 
 services:
   billafrique-tasks:
@@ -17,14 +15,14 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-BillAfrique Tasks <tasks@billafrique.com>}
     ports:
-      - "3031:3000"        # 3000 = billafrique-web, 3002 = tasks
+      - "127.0.0.1:3031:3000"   # debugging only; Nginx uses the Docker network
     depends_on:
       tasks-mysql:
         condition: service_healthy
       tasks-redis:
         condition: service_healthy
     networks:
-      - tasks_network            # use the key your file already uses for billafrique_tasks_network
+      - tasks_network
       - billafrique_network
     deploy:
       resources:
@@ -44,7 +42,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "127.0.0.1:3307:3306"        # shared infra MySQL uses 3306
+      - "127.0.0.1:3307:3306"   # shared infra MySQL uses 3306
     volumes:
       - tasks_mysql_data:/var/lib/mysql
     networks:
@@ -71,7 +69,7 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
-      - "127.0.0.1:6380:6379"        # shared infra Redis uses 6379
+      - "127.0.0.1:6380:6379"   # shared infra Redis uses 6379
     volumes:
       - tasks_redis_data:/data
     networks:
@@ -98,3 +96,5 @@ networks:
   tasks_network:
     driver: bridge
     name: billafrique_tasks_network
+  billafrique_network:
+    external: true
